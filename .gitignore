@@ -1,0 +1,15 @@
+# 运行产物（含个人隐私，切勿提交）
+mac/all_keys.json
+mac/config.json
+mac/decrypted/
+mac/decoded_images/
+mac/find_all_keys_macos
+media_export/
+*.xlsx
+
+# Python
+__pycache__/
+*.pyc
+
+# 系统
+.DS_Store
