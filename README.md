@@ -1,16 +1,15 @@
 # wechat-tool
 
-微信聊天记录导出工具：提取密钥 → 解密 SQLCipher 数据库 → 导出 文本/图片/视频/语音 到 Excel + 媒体目录。
+微信聊天记录导出工具（WeChat 4.x / 4.1+）：提取密钥 → 解密 SQLCipher 数据库 → 导出 文本/图片/视频/语音 到 Excel + 媒体目录。
 
-> **当前仅实现 macOS 版**（入口：`mac-test.py`，实现目录：`mac/`）。  
-> Windows 版规划放在 `win/`（尚未实现），两边入口与取钥方式不同，请勿混用。
+支持 **macOS**（`mac/` + `mac-test.py`）与 **Windows**（`windows/` + `win-test.py`）。两边入口与取钥方式不同，请勿混用。
 
 | 平台 | 入口脚本 | 实现目录 | 状态 |
 | --- | --- | --- | --- |
 | **macOS** | `mac-test.py` | `mac/` | ✅ 可用（WeChat 4.x / 4.1+） |
-| Windows | （待定，如 `win-test.py`） | `win/` | ❌ 未实现 |
+| **Windows** | `win-test.py` | `windows/` | ✅ 可用（Weixin 4.x / 4.1+） |
 
-## 功能（macOS）
+## 功能
 
 - 导出文本、图片、视频、语音（含时长）
 - 支持 zstd 压缩文本（`WCDB_CT=4`）
@@ -22,20 +21,131 @@
 
 ```
 wechat-tool/
-├── mac-test.py          # 【macOS】主入口
-├── mac/                 # 【macOS】实现（取钥 / 解密 / 媒体）
+├── mac-test.py              # 【macOS】主入口
+├── win-test.py              # 【Windows】主入口
+├── mac/                     # 【macOS】实现（取钥 / 解密 / 媒体）
 │   ├── wcdb_key_tool_macos.py
 │   ├── find_all_keys_macos.c
 │   ├── decrypt_db.py
 │   ├── media_export.py
 │   ├── config.py
 │   └── key_utils.py
-├── win/                 # 【Windows】预留，尚未实现
+├── windows/                 # 【Windows】实现（取钥 / 解密 / 媒体）
+│   ├── wcdb_key_tool_windows.py
+│   ├── find_image_key_windows.py
+│   ├── decrypt_db.py
+│   ├── media_export.py
+│   ├── config.py
+│   └── key_utils.py
 ├── requirements.txt
 └── README.md
 ```
 
 运行产物（密钥、解密库、媒体、Excel）均在本地生成，已被 `.gitignore` 排除，不会入库。
+
+---
+
+# Windows 版
+
+以下整节仅适用于 Windows，macOS 用户请看下一节。
+
+## 环境要求（Windows）
+
+| 依赖 | 说明 |
+| --- | --- |
+| **Windows** | 10/11 |
+| 微信 for Windows | 4.x（进程名 `Weixin.exe`） |
+| Python | 3.9+（需带 `pip`） |
+| 权限 | 建议**管理员**运行（读取进程内存取密钥） |
+| ffmpeg | 可选，用于把 `wxgf` 图片转成 JPEG |
+
+## 环境部署（Windows）
+
+```bash
+cd wechat-tool
+pip install -r requirements.txt
+```
+
+如果提示权限不足或想隔离环境：
+
+```bash
+python -m venv .venv
+.\.venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+> 公司网络/代理下若 `pip` 装不上，可加镜像：  
+> `pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple`
+
+## 首次使用（Windows）
+
+1. 登录 Windows 微信（进程名 `Weixin.exe`）
+2. **以管理员身份**打开终端
+3. 运行：
+
+```bash
+python win-test.py
+```
+
+首次会自动检测数据目录（读取 `%APPDATA%\Tencent\xwechat\config\*.ini`），提取密钥并导出。
+
+若 V2 图片解不开：先在微信里打开几张原图，再运行：
+
+```bash
+python windows/find_image_key_windows.py
+```
+
+成功后会把 `image_aes_key` 写入 `windows/config.json`，然后重新导出即可。
+
+## 日常使用（Windows）
+
+```bash
+python win-test.py --fresh
+python win-test.py --fresh --no-media
+python win-test.py --fresh --days 7
+python win-test.py --fresh --start 2026-08-01 --end 2026-08-12
+python win-test.py --fresh --chat 文件传输助手
+python win-test.py --fresh --chat 妈 --chat 某群名 --days 7
+```
+
+## 输出（Windows）
+
+- `wechat_backup_win.xlsx`：聊天明细
+- `media_export/images/`、`media_export/videos/`：解密后的图片与视频
+
+## 参数（Windows · `win-test.py`）
+
+| 参数 | 说明 |
+| --- | --- |
+| `-o, --output` | 输出 Excel 路径（默认 `wechat_backup_win.xlsx`） |
+| `--media-dir` | 图片/视频导出目录（默认 `media_export`） |
+| `--no-media` | 不导出图片/视频，仅文本 |
+| `--fresh` | 复用密钥，强制重新解密并导出（日常推荐） |
+| `--days N` | 只导出最近 N 天（含今天） |
+| `--start / --end` | 精确日期范围（与 `--days` 互斥） |
+| `--chat 关键词` | 指定联系人/群，可多次 |
+| `--refresh-keys` | 强制重新提取密钥 |
+| `--refresh-decrypt` | 强制重新解密数据库 |
+| `--skip-keys / --skip-decrypt` | 跳过对应步骤（需已有产物） |
+| `--my-wxid` | 手动指定自己 wxid |
+
+## 说明与限制（Windows）
+
+- 密钥提取优先走 4.1+ 只读 `Config.Cipher` 扫描，失败再回退旧版 `x'...'` 内存扫描
+- 部分新版本微信若两种扫描都失败，可尝试：`python windows/wcdb_key_tool_windows.py set-passphrase <64hex>` 后重新 `extract`
+- **语音**：当前导出为 `[语音 N″]` 时长文本
+- **图片/视频**：仅导出本地已缓存文件；过期未缓存会标注「未找到本地文件」
+
+## 常见问题（Windows）
+
+**1. 密钥提取失败 / 无法打开进程**
+请以管理员身份运行终端，并确认 `Weixin.exe` 已登录。
+
+**2. V2 图片解密失败**
+先在微信中打开几张原图，再运行 `python windows/find_image_key_windows.py`。
+
+**3. 能在 Windows 上跑 `mac-test.py` 吗？**
+不能。请用 `win-test.py`。
 
 ---
 
@@ -52,17 +162,12 @@ wechat-tool/
 | Python | 3.9+（推荐 3.11/3.12，需带 `pip3`） |
 | ffmpeg | 可选，用于把 `wxgf` 图片转成 JPEG（不装则保留 `wxgf` 原样） |
 
-> Windows 环境要求与取钥方式不同（不走 `codesign`/LLDB），后续单独写在 `win/` 文档里。
-
 ## 环境部署（macOS）
 
 ### 1. 安装 Python 依赖
 
 ```bash
-# 克隆后进入目录
 cd wechat-tool
-
-# 安装依赖（pandas / openpyxl / pycryptodome / zstandard）
 pip3 install -r requirements.txt
 ```
 
@@ -75,7 +180,7 @@ pip install -r requirements.txt
 # 之后运行都用：python mac-test.py（注意是 python 不是 python3）
 ```
 
-> 公司网络/代理下若 `pip` 装不上，可加镜像：
+> 公司网络/代理下若 `pip` 装不上，可加镜像：  
 > `pip3 install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple`
 
 ### 2. 安装 ffmpeg（可选，图片转码用）【macOS】
@@ -115,27 +220,17 @@ python3 mac-test.py
 入口固定为 `mac-test.py`（不要拿去在 Windows 上跑）。
 
 ```bash
-# 刷新最新记录（复用密钥，重新解密+导出）
 python3 mac-test.py --fresh
-
-# 只看文本、不导出媒体
 python3 mac-test.py --fresh --no-media
-
-# 最近 N 天
 python3 mac-test.py --fresh --days 7
-
-# 精确日期范围
 python3 mac-test.py --fresh --start 2026-08-01 --end 2026-08-12
-
-# 指定联系人 / 群（按备注、昵称、wxid 模糊匹配，可多次）
 python3 mac-test.py --fresh --chat 文件传输助手
-python3 mac-test.py --fresh --chat 妈 --chat 某群名 --days 7
 ```
 
 ## 输出（macOS）
 
-- `wechat_backup_mac.xlsx`：聊天明细（聊天对象/发送者/时间/类型/内容/媒体路径）
-- `media_export/images/`、`media_export/videos/`：解密后的图片与视频
+- `wechat_backup_mac.xlsx`
+- `media_export/images/`、`media_export/videos/`
 
 ## 参数（macOS · `mac-test.py`）
 
@@ -158,7 +253,6 @@ python3 mac-test.py --fresh --chat 妈 --chat 某群名 --days 7
 
 - **语音**：macOS 版微信不缓存语音文件，仅能从消息 XML 解析出时长，Excel 中显示为 `[语音 N″]`，无法导出音频。
 - **图片/视频**：仅导出本地已缓存的文件；微信会定期清理未收藏的旧媒体，已过期的会标注「未找到本地文件」。
-- 本工具仅用于个人数据备份。请妥善保管生成的密钥、解密数据库与导出文件，勿泄露他人。
 
 ## 常见问题（macOS）
 
@@ -184,15 +278,12 @@ python3 mac-test.py --refresh-decrypt   # 用现有密钥重新解密
 ```
 
 **7. 能在 Windows 上跑 `mac-test.py` 吗？**
-不能。脚本开头会检测 `sys.platform != "darwin"` 并直接退出。Windows 请等 `win/` 实现。
+不能。脚本开头会检测 `sys.platform != "darwin"` 并直接退出。Windows 请用 `win-test.py`。
 
 ---
-
-# Windows 版
-
-> **尚未实现。** 规划目录：`win/`，入口另行约定（如 `win-test.py`）。  
-> Windows 取钥、数据路径、媒体格式与 macOS 均不同，请勿把 `mac/` 下的脚本拿到 Windows 使用，也不要把 Windows 实现塞进 `mac/`。
 
 ## 安全
 
 `.gitignore` 已排除所有运行产物（密钥 `all_keys.json`、`config.json`、`decrypted/`、`media_export/`、`*.xlsx`）。仓库仅包含工具代码，请勿将个人数据提交入库。建议把本仓库设为 **Private**。
+
+本工具仅用于个人数据备份。请妥善保管生成的密钥、解密数据库与导出文件，勿泄露他人。

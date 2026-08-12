@@ -4,6 +4,12 @@ mac/config.json
 mac/decrypted/
 mac/decoded_images/
 mac/find_all_keys_macos
+mac/media_export/
+windows/all_keys.json
+windows/config.json
+windows/decrypted/
+windows/decoded_images/
+windows/media_export/
 media_export/
 *.xlsx
 
@@ -13,3 +19,4 @@ __pycache__/
 
 # 系统
 .DS_Store
+Thumbs.db
