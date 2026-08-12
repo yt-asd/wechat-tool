@@ -335,7 +335,7 @@ class MediaExporter:
         self.index = HardlinkIndex(decrypted_dir / "hardlink" / "hardlink.db", account_dir)
         self.ok_img = self.fail_img = self.ok_vid = self.fail_vid = 0
         if self.aes_key:
-            print(f"图片 AES key 已派生：{self.aes_key.decode()}（xor={self.xor_byte:#x}）")
+            print(f"图片 AES key 已派生（xor={self.xor_byte:#x}）")
         else:
             print("警告：未能派生图片 AES key，V2 图片可能无法解密")
 

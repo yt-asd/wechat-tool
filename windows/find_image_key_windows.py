@@ -30,26 +30,32 @@ RE_KEY16 = re.compile(rb"(?<![0-9A-Za-z])([0-9A-Za-z]{16})(?![0-9A-Za-z])")
 RE_KEY32 = re.compile(rb"(?<![0-9A-Za-z])([0-9A-Za-z]{32})(?![0-9A-Za-z])")
 IMAGE_MAGICS = (b"\xff\xd8\xff", b"\x89PNG", b"GIF8", b"RIFF", b"wxgf")
 
+WECHAT_EXES = ("Weixin.exe", "WeChat.exe")
 CONFIG_FILE = Path(__file__).resolve().parent / "config.json"
 
 
 def _get_pids() -> list[int]:
-    r = subprocess.run(
-        ["tasklist", "/FI", "IMAGENAME eq Weixin.exe", "/FO", "CSV", "/NH"],
-        capture_output=True,
-        text=True,
-        creationflags=subprocess.CREATE_NO_WINDOW,
-    )
-    pids = []
-    for line in r.stdout.strip().splitlines():
-        if not line.strip():
-            continue
-        parts = line.strip('"').split('","')
-        if len(parts) >= 2:
-            try:
-                pids.append(int(parts[1]))
-            except ValueError:
+    pids: list[int] = []
+    seen: set[int] = set()
+    for image_name in WECHAT_EXES:
+        r = subprocess.run(
+            ["tasklist", "/FI", f"IMAGENAME eq {image_name}", "/FO", "CSV", "/NH"],
+            capture_output=True,
+            text=True,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+        for line in (r.stdout or "").strip().splitlines():
+            if not line.strip():
                 continue
+            parts = line.strip('"').split('","')
+            if len(parts) >= 2:
+                try:
+                    pid = int(parts[1])
+                except ValueError:
+                    continue
+                if pid not in seen:
+                    seen.add(pid)
+                    pids.append(pid)
     return pids
 
 
@@ -107,7 +113,7 @@ def extract_image_aes_key(account_dir: Path | None = None) -> tuple[str | None, 
 
     pids = _get_pids()
     if not pids:
-        print("[!] Weixin.exe 未运行，请先登录微信并打开几张图片。")
+        print("[!] 微信未运行（Weixin.exe / WeChat.exe），请先登录微信并打开几张图片。")
         return None, xor_key
 
     import ctypes.wintypes as wt
@@ -175,7 +181,10 @@ def extract_image_aes_key(account_dir: Path | None = None) -> tuple[str | None, 
                             seen.add(cand)
                             if _valid_aes_candidate(cand, ciphertext):
                                 key = cand.decode("ascii")
-                                print(f"[+] 找到图片 AES key: {key}（耗时 {time.time() - t0:.1f}s）")
+                                print(
+                                    f"[+] 找到图片 AES key（已写入配置，不在此显示完整值）"
+                                    f"（耗时 {time.time() - t0:.1f}s）"
+                                )
                                 return key, xor_key
         finally:
             kernel32.CloseHandle(h)

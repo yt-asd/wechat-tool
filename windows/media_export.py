@@ -398,7 +398,7 @@ class MediaExporter:
         self.ok_img = self.fail_img = self.ok_vid = self.fail_vid = 0
         if self.aes_key:
             src = "config.json" if cfg_aes else "uin+wxid"
-            print(f"图片 AES key 已就绪（{src}）：{self.aes_key.decode(errors='replace')}（xor={self.xor_byte!r}）")
+            print(f"图片 AES key 已就绪（来源 {src}，xor={self.xor_byte!r}）")
         else:
             print(
                 "警告：未找到图片 AES key，V2 图片可能无法解密。"

@@ -73,17 +73,24 @@ MSG_TYPES = {
 EXPORT_TYPES = {1, 3, 34, 43}
 
 
-def wechat_running() -> bool:
+WECHAT_EXES = ("Weixin.exe", "WeChat.exe")
+
+
+def _tasklist_has_image(image_name: str) -> bool:
     try:
         r = subprocess.run(
-            ["tasklist", "/FI", "IMAGENAME eq Weixin.exe", "/FO", "CSV", "/NH"],
+            ["tasklist", "/FI", f"IMAGENAME eq {image_name}", "/FO", "CSV", "/NH"],
             capture_output=True,
             text=True,
             creationflags=subprocess.CREATE_NO_WINDOW,
         )
-        return "Weixin.exe" in (r.stdout or "")
+        return image_name.lower() in (r.stdout or "").lower()
     except OSError:
         return False
+
+
+def wechat_running() -> bool:
+    return any(_tasklist_has_image(name) for name in WECHAT_EXES)
 
 
 def _is_admin() -> bool:
@@ -115,7 +122,9 @@ def extract_keys(db_dir: str, force: bool = False) -> Path:
         return keys_file
 
     if not wechat_running():
-        raise SystemExit("未检测到运行中的 Weixin.exe，请先打开并登录 Windows 微信。")
+        raise SystemExit(
+            "未检测到运行中的微信进程（Weixin.exe / WeChat.exe），请先打开并登录 Windows 微信。"
+        )
 
     if not _is_admin():
         print("警告：当前可能不是管理员权限，读取进程内存可能失败。")
@@ -378,13 +387,15 @@ def export_chats_to_excel(
                     allowed_talkers.add(kw)
                 else:
                     print(f"  提示：未匹配到聊天对象「{kw}」（按备注/昵称/wxid 模糊查找）")
-        if allowed_talkers:
-            print(
-                f"筛选聊天对象 {len(allowed_talkers)} 个："
-                f"{sorted(allowed_talkers)[:8]}{'...' if len(allowed_talkers) > 8 else ''}"
+        if not allowed_talkers:
+            raise SystemExit(
+                "未匹配到任何聊天对象，已中止导出。"
+                "请检查 --chat 关键词（备注/昵称/wxid/群名），或去掉 --chat 导出全部。"
             )
-        else:
-            print("提示：未匹配到任何聊天对象，将导出全部")
+        names = sorted(allowed_talkers)
+        preview = ", ".join(names[:20])
+        more = f" …共 {len(names)} 个" if len(names) > 20 else ""
+        print(f"筛选聊天对象 {len(names)} 个：{preview}{more}")
 
     rows: list[dict] = []
     dbs = get_message_dbs(decrypted_dir)

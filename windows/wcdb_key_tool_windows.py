@@ -170,27 +170,40 @@ WINDOWS_CONFIG_BLOB_MAX = 1024
 WINDOWS_CONFIG_LITERAL_RE = re.compile(rb"[xX]'([0-9a-fA-F]{64,192})'")
 
 
+WECHAT_EXES = ("Weixin.exe", "WeChat.exe")
+
+
 def _get_pids_windows() -> list[tuple[int, int]]:
-    r = subprocess.run(
-        ["tasklist", "/FI", "IMAGENAME eq Weixin.exe", "/FO", "CSV", "/NH"],
-        capture_output=True, text=True,
-        creationflags=subprocess.CREATE_NO_WINDOW,
-    )
     pids: list[tuple[int, int]] = []
-    for line in r.stdout.strip().split("\n"):
-        if not line.strip():
-            continue
-        p = line.strip('"').split('","')
-        if len(p) >= 5:
-            pid = int(p[1])
-            mem = int(p[4].replace(",", "").replace(" K", "").strip() or "0")
-            pids.append((pid, mem))
+    for image_name in WECHAT_EXES:
+        r = subprocess.run(
+            ["tasklist", "/FI", f"IMAGENAME eq {image_name}", "/FO", "CSV", "/NH"],
+            capture_output=True, text=True,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+        for line in (r.stdout or "").strip().split("\n"):
+            if not line.strip():
+                continue
+            p = line.strip('"').split('","')
+            if len(p) >= 5:
+                try:
+                    pid = int(p[1])
+                    mem = int(p[4].replace(",", "").replace(" K", "").strip() or "0")
+                except ValueError:
+                    continue
+                pids.append((pid, mem))
     if not pids:
-        raise RuntimeError("Weixin.exe 未运行")
-    pids.sort(key=lambda x: x[1], reverse=True)
-    for pid, mem in pids:
-        _print(f"[+] Weixin.exe PID={pid} ({mem // 1024}MB)")
-    return pids
+        raise RuntimeError("微信未运行（未找到 Weixin.exe / WeChat.exe）")
+    # 去重（同 PID 只保留一次）
+    seen = set()
+    uniq: list[tuple[int, int]] = []
+    for pid, mem in sorted(pids, key=lambda x: x[1], reverse=True):
+        if pid in seen:
+            continue
+        seen.add(pid)
+        uniq.append((pid, mem))
+        _print(f"[+] WeChat PID={pid} ({mem // 1024}MB)")
+    return uniq
 
 
 def _xor_repeat(data: bytes, mask: bytes) -> bytes:
@@ -596,18 +609,10 @@ def check_cdb_prerequisites() -> list[str]:
 
 
 def _find_wechat_pid_windows() -> int | None:
-    r = subprocess.run(
-        ["tasklist", "/FI", "IMAGENAME eq Weixin.exe", "/FO", "CSV", "/NH"],
-        capture_output=True, text=True,
-        creationflags=subprocess.CREATE_NO_WINDOW,
-    )
-    for line in r.stdout.strip().split("\n"):
-        if not line.strip():
-            continue
-        parts = line.strip('"').split('","')
-        if len(parts) >= 2:
-            return int(parts[1])
-    return None
+    try:
+        return _get_pids_windows()[0][0]
+    except RuntimeError:
+        return None
 
 
 def _parse_db_output(text: str) -> str | None:

@@ -54,7 +54,7 @@ wechat-tool/
 | 依赖 | 说明 |
 | --- | --- |
 | **Windows** | 10/11 |
-| 微信 for Windows | 4.x（进程名 `Weixin.exe`） |
+| 微信 for Windows | 4.x（进程名 `Weixin.exe`，旧版也可能是 `WeChat.exe`） |
 | Python | 3.9+（需带 `pip`） |
 | 权限 | 建议**管理员**运行（读取进程内存取密钥） |
 | ffmpeg | 可选，用于把 `wxgf` 图片转成 JPEG |
@@ -79,7 +79,7 @@ pip install -r requirements.txt
 
 ## 首次使用（Windows）
 
-1. 登录 Windows 微信（进程名 `Weixin.exe`）
+1. 登录 Windows 微信（进程名 `Weixin.exe` / `WeChat.exe`）
 2. **以管理员身份**打开终端
 3. 运行：
 
@@ -139,7 +139,7 @@ python win-test.py --fresh --chat 妈 --chat 某群名 --days 7
 ## 常见问题（Windows）
 
 **1. 密钥提取失败 / 无法打开进程**
-请以管理员身份运行终端，并确认 `Weixin.exe` 已登录。
+请以管理员身份运行终端，并确认微信进程（`Weixin.exe` / `WeChat.exe`）已登录。
 
 **2. V2 图片解密失败**
 先在微信中打开几张原图，再运行 `python windows/find_image_key_windows.py`。

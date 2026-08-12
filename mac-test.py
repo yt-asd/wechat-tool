@@ -399,10 +399,15 @@ def export_chats_to_excel(
                     allowed_talkers.add(kw)
                 else:
                     print(f"  提示：未匹配到聊天对象「{kw}」（按备注/昵称/wxid 模糊查找）")
-        if allowed_talkers:
-            print(f"筛选聊天对象 {len(allowed_talkers)} 个：{sorted(allowed_talkers)[:8]}{'...' if len(allowed_talkers) > 8 else ''}")
-        else:
-            print("提示：未匹配到任何聊天对象，将导出全部")
+        if not allowed_talkers:
+            raise SystemExit(
+                "未匹配到任何聊天对象，已中止导出。"
+                "请检查 --chat 关键词（备注/昵称/wxid/群名），或去掉 --chat 导出全部。"
+            )
+        names = sorted(allowed_talkers)
+        preview = ", ".join(names[:20])
+        more = f" …共 {len(names)} 个" if len(names) > 20 else ""
+        print(f"筛选聊天对象 {len(names)} 个：{preview}{more}")
 
     rows: list[dict] = []
     dbs = get_message_dbs(decrypted_dir)
