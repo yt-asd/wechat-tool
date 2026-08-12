@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-macOS 微信聊天记录导出 Excel（WeChat 4.x / 4.1+）
+【macOS 专用】微信聊天记录导出 Excel（WeChat 4.x / 4.1+）
+
+实现目录：mac/。Windows 版请见 win/（尚未实现），请勿在 Windows 上运行本脚本。
 
 流程：提取密钥 → 解密 SQLCipher 数据库 → 导出文本/图片/视频到 Excel + 媒体目录
 
