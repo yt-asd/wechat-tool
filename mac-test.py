@@ -344,6 +344,31 @@ def display_name(users: dict[str, dict], wxid: str) -> str:
     return info["display"] if info else wxid
 
 
+def _resolve_writable_excel_path(output_excel: Path) -> Path:
+    """目标 Excel 被占用/不可写时，自动改用带序号的新文件名。"""
+    if not output_excel.exists():
+        return output_excel
+    try:
+        with open(output_excel, "ab"):
+            return output_excel
+    except OSError:
+        pass
+    stem, suffix = output_excel.stem, output_excel.suffix or ".xlsx"
+    for i in range(2, 100):
+        candidate = output_excel.with_name(f"{stem}_{i}{suffix}")
+        try:
+            with open(candidate, "xb"):
+                pass
+            candidate.unlink()
+            print(f"提示：{output_excel.name} 正被占用，已改用 {candidate.name}")
+            return candidate
+        except FileExistsError:
+            continue
+        except OSError:
+            continue
+    raise SystemExit(f"无法写入输出文件：{output_excel}（请先关闭已打开的 Excel）")
+
+
 def export_chats_to_excel(
     decrypted_dir: Path,
     output_excel: Path,
@@ -578,6 +603,7 @@ def export_chats_to_excel(
         return
 
     df = pd.DataFrame(rows)
+    output_excel = _resolve_writable_excel_path(output_excel)
     df.to_excel(output_excel, index=False)
     print(f"导出完成：{output_excel}（共 {len(df)} 条）")
 
