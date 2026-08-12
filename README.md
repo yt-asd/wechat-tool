@@ -40,9 +40,14 @@
 ## 开始前准备（两种电脑都要）
 
 1. **电脑上已安装微信**，并且能正常登录。
-2. **安装 Python**（没有的话先装）：
-   - Mac：打开「终端」，输入 `python3 --version`，有版本号就行；没有就到 [python.org](https://www.python.org/downloads/) 下载安装。
-   - Windows：到 [python.org](https://www.python.org/downloads/) 下载安装，**安装时务必勾选 “Add Python to PATH”**。
+2. **安装 Python 3.9 或更高版本**（推荐 **3.10 / 3.11 / 3.12**）：
+   - 先在终端/命令行输入下面命令看版本：
+     - Mac：`python3 --version`
+     - Windows：`python --version`
+   - 显示类似 `Python 3.12.x` 且 **≥ 3.9** 就可以
+   - 没有安装，或版本低于 3.9：到 [python.org](https://www.python.org/downloads/) 下载安装  
+     - Windows 安装时务必勾选 **“Add Python to PATH”**
+     - 不建议用已经停止维护的 3.8 及以下
 3. 把本工具下载到电脑（例如解压到桌面的 `wechat-tool` 文件夹）。
 
 ---
