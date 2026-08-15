@@ -6,7 +6,7 @@
 
 流程：提取密钥 → 解密 SQLCipher 数据库 → 导出文本/图片/视频到 Excel + 媒体目录
 
-日常刷新最新记录（复用密钥，重新解密+导出）：
+日常刷新最新记录（复用密钥，增量解密+导出）：
   python3 mac-test.py --fresh
 
 只导出最近 N 天（如最近 7 天）：
@@ -51,8 +51,8 @@ sys.path.insert(0, str(MAC_DIR))
 
 import pandas as pd
 from config import load_config
-from decrypt_db import decrypt_database
-from key_utils import get_key_info, strip_key_metadata
+from decrypt_db import decrypt_export_dbs
+from key_utils import strip_key_metadata
 from media_export import MediaExporter
 
 try:
@@ -167,16 +167,16 @@ def extract_keys(db_dir: str, force: bool = False, timeout: int = 300) -> Path:
     return keys_file
 
 
-def decrypt_all(cfg: dict, force: bool = False) -> Path:
-    """解密 db_storage 下所有有密钥的数据库。"""
-    out_dir = Path(cfg["decrypted_dir"])
+def decrypt_all(
+    cfg: dict,
+    force: bool = False,
+    include_hardlink: bool = True,
+    workers: int = 0,
+) -> Path:
+    """只解密导出需要的库；未变化则跳过；多个库可并行。"""
     keys_file = Path(cfg["keys_file"])
     db_dir = Path(cfg["db_dir"])
-
-    contact_db = out_dir / "contact" / "contact.db"
-    if contact_db.exists() and not force:
-        print(f"已存在解密结果，跳过解密：{out_dir}（加 --refresh-decrypt 可强制重解）")
-        return out_dir
+    out_dir = Path(cfg["decrypted_dir"])
 
     if not keys_file.exists():
         raise SystemExit(f"缺少密钥文件：{keys_file}，请先提取密钥。")
@@ -186,34 +186,14 @@ def decrypt_all(cfg: dict, force: bool = False) -> Path:
     with open(keys_file, encoding="utf-8") as f:
         keys = strip_key_metadata(json.load(f))
 
-    db_files = []
-    for root, _, files in os.walk(db_dir):
-        for name in files:
-            if name.endswith(".db") and not name.endswith(("-wal", "-shm")):
-                path = Path(root) / name
-                rel = path.relative_to(db_dir).as_posix()
-                db_files.append((rel, path, path.stat().st_size))
-    db_files.sort(key=lambda x: x[2])
-
-    print(f"开始解密 {len(db_files)} 个数据库 → {out_dir}")
-    ok_n = fail_n = 0
-    for rel, path, size in db_files:
-        key_info = get_key_info(keys, rel)
-        if not key_info:
-            print(f"  SKIP {rel}（无密钥）")
-            fail_n += 1
-            continue
-        enc_key = bytes.fromhex(key_info["enc_key"])
-        out_path = out_dir / rel
-        print(f"  解密 {rel} ({size / 1024 / 1024:.1f}MB) ...", end=" ", flush=True)
-        if decrypt_database(str(path), str(out_path), enc_key):
-            print("OK")
-            ok_n += 1
-        else:
-            print("FAIL")
-            fail_n += 1
-
-    print(f"解密完成：成功 {ok_n}，失败/跳过 {fail_n}")
+    decrypt_export_dbs(
+        str(db_dir),
+        str(out_dir),
+        keys,
+        force=force,
+        include_hardlink=include_hardlink,
+        workers=workers,
+    )
     return out_dir
 
 
@@ -502,7 +482,7 @@ def export_chats_to_excel(
                         ORDER BY create_time ASC
                         """,
                         params,
-                    ).fetchall()
+                    )
                 except sqlite3.Error:
                     # 旧库可能无 WCDB_CT 列
                     try:
@@ -616,12 +596,19 @@ def main():
     parser.add_argument(
         "--fresh",
         action="store_true",
-        help="刷新最新数据：复用已有密钥，强制重新解密并导出（日常推荐）",
+        help="刷新最新数据：复用已有密钥，增量解密变化的库并导出（日常推荐）",
     )
     parser.add_argument("--refresh-keys", action="store_true", help="强制重新提取密钥")
     parser.add_argument("--refresh-decrypt", action="store_true", help="强制重新解密数据库")
     parser.add_argument("--skip-keys", action="store_true", help="跳过密钥提取（需已有 all_keys.json）")
     parser.add_argument("--skip-decrypt", action="store_true", help="跳过解密（需已有 decrypted/）")
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=0,
+        metavar="N",
+        help="解密并行进程数（0=自动，最多 6；1=单进程）",
+    )
     parser.add_argument("--my-wxid", default=None, help="自己的 wxid（可选，一般可自动识别）")
     parser.add_argument("--timeout", type=int, default=300, help="4.1+ 等待重新登录的超时秒数（默认 300）")
     parser.add_argument(
@@ -684,14 +671,18 @@ def main():
         raise SystemExit("--start 不能晚于 --end")
 
     if args.fresh:
-        # 日常刷新：密钥一般不变，但加密库/媒体索引会变
-        args.skip_keys = True
-        args.refresh_decrypt = True
         args.skip_decrypt = False
 
     print("加载配置...")
     cfg = load_config()
     print(f"微信数据库目录：{cfg['db_dir']}")
+
+    have_keys = bool(_load_valid_keys(Path(cfg["keys_file"])))
+    if args.fresh and have_keys and not args.refresh_keys:
+        args.skip_keys = True
+    if args.skip_keys and not have_keys:
+        print("没有可用密钥，将先提取密钥")
+        args.skip_keys = False
 
     if not args.skip_keys:
         extract_keys(db_dir=cfg["db_dir"], force=args.refresh_keys, timeout=args.timeout)
@@ -702,7 +693,12 @@ def main():
         )
 
     if not args.skip_decrypt:
-        decrypt_all(cfg, force=args.refresh_decrypt or args.fresh)
+        decrypt_all(
+            cfg,
+            force=args.refresh_decrypt,
+            include_hardlink=not args.no_media,
+            workers=args.workers,
+        )
 
     account_dir = Path(cfg.get("wechat_base_dir") or Path(cfg["db_dir"]).parent)
     export_chats_to_excel(

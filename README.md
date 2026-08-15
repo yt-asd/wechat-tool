@@ -137,6 +137,9 @@ python win-test.py --fresh --chat 文件传输助手
 
 :: 最近 7 天 + 指定联系人/群
 python win-test.py --fresh --chat 张三 --days 7
+
+:: 聊天特别多时：指定并行解密进程数（默认自动，最多 6）
+python win-test.py --fresh --workers 4
 ```
 
 ---
@@ -239,6 +242,9 @@ python3 mac-test.py --fresh --chat 文件传输助手
 
 # 最近 7 天 + 指定联系人/群
 python3 mac-test.py --fresh --chat 张三 --days 7
+
+# 聊天特别多时：指定并行解密进程数（默认自动，最多 6）
+python3 mac-test.py --fresh --workers 4
 ```
 
 ---
@@ -322,13 +328,14 @@ python3 mac-test.py --fresh --chat 张三 --days 7
 
 | 参数 | 作用 |
 | --- | --- |
-| `--fresh` | 复用已有密钥，重新解密并导出（日常推荐） |
-| `--no-media` | 不导出图片/视频 |
+| `--fresh` | 复用已有密钥，**只解密有变化的库**并导出（日常推荐） |
+| `--no-media` | 不导出图片/视频（更快，也不解密媒体索引库） |
 | `--days N` | 最近 N 天 |
 | `--start` / `--end` | 日期范围（不要和 `--days` 一起用） |
 | `--chat 关键词` | 按备注/昵称/群名筛选，可写多次 |
 | `--refresh-keys` | 强制重新提取密钥 |
-| `--refresh-decrypt` | 强制重新解密数据库 |
+| `--refresh-decrypt` | 强制重新解密全部导出所需数据库 |
+| `--workers N` | 解密并行进程数（0=自动，最多 6） |
 | `--skip-keys` / `--skip-decrypt` | 跳过对应步骤（已有结果时） |
 | `--my-wxid` | 手动指定自己的微信 ID（一般不用） |
 | `--timeout` | 仅 Mac：等待重新登录的秒数（默认 300） |
